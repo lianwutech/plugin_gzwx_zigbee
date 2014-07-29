@@ -40,12 +40,13 @@ from libs.utils import *
 from libs.znetmsgdefine import *
 from libs.znetmessage import *
 from libs.serialcommunicate import *
+from libs.platformdevicedefine import *
 
 # 全局变量
 # 设备信息字典
 devices_info_dict = dict()
 # 设备运行字典，device_id、运行对象
-devices_dict = dict()
+threads_dict = dict()
 cooperator_serial = SerialCommunicate()
 
 # 切换工作目录
@@ -55,26 +56,28 @@ procedure_path = cur_file_dir()
 os.chdir(procedure_path)
 
 # 日志对象
-logger = logging.getLogger('tcpserver')
-hdlr = logging.FileHandler('./tcpserver.log')
+logger = logging.getLogger('gzxx_zigbee')
+hdlr = logging.FileHandler('./gzxx_zigbee.log')
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 hdlr.setFormatter(formatter)
 logger.addHandler(hdlr)
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.DEBUG)
 
 # 加载配置项
 config = ConfigParser.ConfigParser()
-config.read("./tcpserver.cfg")
-serial_port = int(config.get('serial', 'port'))
+config.read("./gzxx_zigbee.cfg")
+serial_port = config.get('serial', 'port')
 serial_baund = int(config.get('serial', 'baund'))
-mqtt_server_ip = config.get('mqtt', 'ip')
+mqtt_server_ip = config.get('mqtt', 'server')
 mqtt_server_port = int(config.get('mqtt', 'port'))
-gateway_topic= config.get('gateway', 'topic')
+gateway_topic = config.get('gateway', 'topic')
 
 
 # 加载设备信息字典
 devices_info_file = "./devices.txt"
-def load_devices_dict():
+
+
+def load_devices_info_dict():
     devices_file = open(devices_info_file, "r+")
     if os.path.exists(devices_info_file):
         content = devices_file.read()
@@ -97,27 +100,22 @@ def check_device(device_id, device_type, device_addr, device_port):
             "device_port": device_port
         }
         #写文件
-        devices_file = open(devices_info_file, "r+")
+        devices_file = open(devices_info_file, "w+")
         devices_file.write(dumps(devices_info_dict))
         devices_file.close()
+
 
 def publish_device_data(device_id, device_type, device_addr, device_port, device_data):
     # device_data: 16进制字符串
     # 组包
-    device_msg = {
-        "device_id": device_id,
-        "device_type": device_type,
-        "device_addr": device_addr,
-        "device_port": device_port,
-        "device_data": device_data
-    }
+    device_msg = "%s,%d,%s,%d,%s" % (device_id, device_type, device_addr, device_port, device_data)
 
     # MQTT发布
     publish.single(topic=gateway_topic,
                    payload=device_msg,
                    hostname=mqtt_server_ip,
                    port=mqtt_server_port)
-    logger.info("向Topic(%s)发布消息：%r" % (gateway_topic, device_msg))
+    logger.info("向Topic(%s)发布消息：%s" % (gateway_topic, device_msg))
 
 
 def process_zigbee_msg(zigbee_msg):
@@ -254,19 +252,19 @@ def process_mqtt(device_id):
             else:
                 ctrl_reg["ctrl_cmd"] = 0xff
                 ctrl_reg["ctrl_delay_time"] = 0xffff
-            interface_logger.debug("%d delay_ctrl_reg: %s" % (i, ctrl_reg))
+            logger.debug("%d delay_ctrl_reg: %s" % (i, ctrl_reg))
             _delay_ctrl_reg.append(ctrl_reg)
         zigbee_ctrl_msg.msg['tag_data']['delay_ctrl_reg'] = _delay_ctrl_reg
 
         # 消息打包
         try:
-            # interface_logger.debug("zigbee_msg: %s" % dumps(zigbee_ctrl_msg.msg['tag_data']))
+            # logger.debug("zigbee_msg: %s" % dumps(zigbee_ctrl_msg.msg['tag_data']))
             zigbee_ctrl_msg.pack()
-            interface_logger.debug("打包后结果:%r" % zigbee_ctrl_msg.msg['frame_data_buff'])
+            logger.debug("打包后结果:%r" % zigbee_ctrl_msg.msg['frame_data_buff'])
             # 指令下发
             cooperator_serial.send(zigbee_ctrl_msg.msg['frame_data_buff'])
         except Exception, e:
-            interface_logger.error("消息打包错误，错误内容：%s" % e)
+            logger.error("消息打包错误，错误内容：%s" % e)
 
     client = mqtt.Client(client_id=gateway_topic)
     client.on_connect = on_connect
@@ -280,22 +278,23 @@ def process_mqtt(device_id):
     # manual interface.
     client.loop_forever()
 
+
 # mqtt监听线程函数
 def process_manage_mqtt():
     while True:
-        for device_info in  devices_info_dict:
+        for device_id in devices_info_dict:
+            device_info = devices_info_dict[device_id]
+            logger.debug("device_info:%r" % device_info)
             if device_info["device_type"] == const.DEVICE_TYPE_DELAY_CTRL or \
                             device_info["device_type"] == const.ZNET_DEVICE_TYPE_SENSOR_NONE:
-                if device_info["device_id"] in devices_dict:
-                    # 检查线程状态
-                    if not devices_dict["device_id"]["thread"].is_alive():
-                        devices_dict["device_id"]["thread"].start()
+                if device_info["device_id"] in threads_dict and threads_dict[device_info["device_id"]].isAlive():
+                    pass
                 else:
                     # 新建线程
                     # 创建线程接受消息
-                    process_thread = threading.Thread(target=process_mqtt, args=(device_info["device_id"]))
+                    process_thread = threading.Thread(target=process_mqtt, args=(device_info["device_id"],))
                     process_thread.start()
-                    devices_dict[device_info["device_id"]] = {"thread": process_thread}
+                    threads_dict[device_info["device_id"]] = process_thread
         # 休息5s
         sleep(5)
 
@@ -314,6 +313,9 @@ if __name__ == "__main__":
         'stopbits': serial.STOPBITS_ONE,
         'timeout': 1}
 
+    # 加载设备数据
+    load_devices_info_dict()
+
     data_buff = ""
     while True:
 
@@ -323,14 +325,12 @@ if __name__ == "__main__":
             manage_mqtt_thread.start()
 
         # 读取串口数据并解析
-        serial_data = None
-
         # 串口数据读取
         logger.debug("串口数据读取")
         try:
             serial_data = cooperator_serial.recv()
         except Exception, e:
-            serial_data = None
+            serial_data = ""
             logger.error(e)
             logger.info("重新打开串口")
             result, error_info = cooperator_serial.open(serial_settings)
@@ -356,7 +356,7 @@ if __name__ == "__main__":
                 logger.debug("报文头内存下标: %d" % frame_header_pos)
                 if frame_header_pos < 0:
                     # 没有找到报文头，则丢弃
-                    data_buff = None
+                    data_buff = ""
                     logger.debug("丢弃串口数据: %s" % serial_data.encode("hex"))
                 else:
                     data_buff = data_buff[frame_header_pos:]

@@ -15,7 +15,7 @@ from struct import pack, unpack_from, calcsize
 from binascii import b2a_hex, a2b_hex
 
 import znetmessageerror as MSG_ERR
-import znetmessagedefine as MSG_DEF
+import znetmsgdefine as MSG_DEF
 
 
 class MessageEngine(object):
