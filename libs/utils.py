@@ -4,11 +4,17 @@
 import os
 import sys
 
-
-# 整形转16进制字符串
-def int2hex(value):
-    return "%0.2X" % value
-
+def int2hex(int_value, sizeofint=2):
+    """
+    整形转hex字符串
+    :param int_value:
+    :return: hex字符串，不包含前缀
+    """
+    negativ_int_cal_num = int("0x" + "FF" * sizeofint, 16)
+    encoded = format(int_value & negativ_int_cal_num, 'x')
+    length = len(encoded)
+    encoded = encoded.zfill(length + length % 2)
+    return encoded
 
 # 16进制字符串转整形
 def hex2int(hex_str):
@@ -25,4 +31,5 @@ def cur_file_dir():
         return path
     elif os.path.isfile(path):
         return os.path.dirname(path)
+
 

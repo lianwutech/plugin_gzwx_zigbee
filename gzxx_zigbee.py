@@ -157,7 +157,7 @@ def process_zigbee_msg(zigbee_msg):
                             device_addr = node_id
                             device_port = j + 1
                             device_type = sensor_data["sensor_type"]
-                            device_data = "%d" % sensor_data["sensor_data"]
+                            device_data = sensor_data["sensor_data"]
                             check_device(device_id, device_type, device_addr, device_port)
                             publish_device_data(device_id, device_type, device_addr, device_port, device_data)
                 logger.debug("zigbee_msg.msg['tag_data']['delay_status_list'] = %r" % zigbee_msg.msg['tag_data']['delay_status_list'])
@@ -169,7 +169,7 @@ def process_zigbee_msg(zigbee_msg):
                     device_addr = router_id
                     device_port = k + 1
                     device_type = const.DEVICE_TYPE_DELAY_CTRL
-                    device_data = "%d" % zigbee_msg.msg['tag_data']['delay_status_list'][k]
+                    device_data = int2hex(int(zigbee_msg.msg['tag_data']['delay_status_list'][k]))
                     check_device(device_id, device_type, device_addr, device_port)
                     publish_device_data(device_id, device_type, device_addr, device_port, device_data)
 
@@ -184,7 +184,7 @@ def process_zigbee_msg(zigbee_msg):
                     device_addr = router_id
                     device_port = i + 1
                     device_type = const.DEVICE_TYPE_DELAY_CTRL
-                    device_data = "%d" % zigbee_msg.msg['tag_data']['delay_status_list'][i]
+                    device_data = int2hex(int(zigbee_msg.msg['tag_data']['delay_status_list'][i]))
                     check_device(device_id, device_type, device_addr, device_port)
                     publish_device_data(device_id, device_type, device_addr, device_port, device_data)
 

@@ -7,6 +7,12 @@
 import znetmessageengine as MsgEngine
 import logging
 
+from libs.const import *
+from libs.utils import *
+from libs.znetmsgdefine import *
+from libs.znetmessageengine import *
+from libs.znetmessageerror import *
+
 # 初始化日志
 interface_logger = logging.getLogger('interface')
 
@@ -164,7 +170,6 @@ class GZXXZigbeeNetMessage(object):
             self.msg['decode_frame_status'] = self.msg_engine.msg_def.const.DECODE_FRAME_TAIL_END
             return offset_
 
-
     def __unpack_frame_reader_normal(self, offset=1, frame_data_buff=None):
         """
         解析正常标签数据
@@ -227,75 +232,76 @@ class GZXXZigbeeNetMessage(object):
                 sensor_data = dict()
                 sensor_data['sensor_type'] = (data_4_byte & 0x00FF0000) >> 16
                 sensor_data_buff = data_4_byte & 0x0000FFFF
+                sensor_data['sensor_data'] = int2hex(sensor_data_buff)
                 if sensor_data_buff == 0xffff or sensor_data['sensor_type'] == 0xff or sensor_data['sensor_type'] == 0x00:
                     sensor_data["sensor_type"] = self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_NONE
-                    sensor_data['sensor_data'] = str(0xffff)
+                    sensor_data['sensor_data'] = int2hex(0xffff)
                 else:
                     # 数据处理
                     if sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_TA:
                         '环境温度 0x01  低位在前,高位在后; 单位:0.1 度 最高位:符号位 0 正,1 负'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SENSOR_TA
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff) * 0.1)
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff) * 0.1)
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_AH:
                         '环境湿度 0x02 第一字节有效:精度 1%; 第二字节备用'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SENSOR_AH
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_CO2:
                         'CO2 0x03 低位在前,高位在后'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SENSOR_CO2
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2num_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2num_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_SH:
                         '土壤水分 0x04 低位在前,高位在后; 单位:0.1 度'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SENSOR_SH
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff) * 0.1)
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff) * 0.1)
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_LU:
                         '光照度 0x05 低位在前,高位在后'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SENSOR_LU
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2num_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2num_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_ST:
                         '土壤温度 0x06 低位在前,高位在后; 单位:0.1度; 最高位:符号位 0 正,1 负。'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SENSOR_ST
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff) * 0.1)
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff) * 0.1)
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_SMO:
                         '土壤湿度 0x07 第一字节有效:精度 1%; 第二字节备用'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SENSOR_SMO
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_T:
                         '温度 0xa1 低位在前,高位在后; 单位:0.1 度 最高位:符号位 0 正,1 负'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SENSOR_TA
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff) * 0.1)
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff) * 0.1)
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_H:
                         '湿度 0xa2 第一字节有效:精度 1%; 第二字节备用'
                         sensor_data['sensor_type'] = const.ZNET_DEVICE_TYPE_SENSOR_AH
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_ACCELERATION_X:
                         '加速度 0xa3 X轴2字节：低位在前，高位在后;'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_ACCELERATION_X
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_ACCELERATION_Y:
                         '加速度 0xa3 Y轴2字节：低位在前，高位在后;'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_ACCELERATION_Y
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_ACCELERATION_Z:
                         '加速度 0xa3 Z轴2字节：低位在前，高位在后'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_ACCELERATION_Z
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2int_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_INFRARED:
                         '人体红外	0xa4	0x1: 监测到有效信号 0x2: 未测到'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_INFRARED
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_PROXIMITY_SWITCH:
                         '接近开关	0xa5	0x1: 监测到有效信号 0x2: 未测到'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_PROXIMITY_SWITCH
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
                     elif sensor_data['sensor_type'] == self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SMOKE_TRANSDUCER:
                         '烟雾	0xa6;第1字节： 0x1: 监测到有效信号 0x2: 未测到 其它：无效 第2字节： 脉宽周期，单位mS'
                         sensor_data['sensor_type'] = const.DEVICE_TYPE_SMOKE_TRANSDUCER
-                        sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
+                        # sensor_data['sensor_data'] = str(self.msg_engine.bin2num1byte_hex(sensor_data_buff))
                     else:
                         interface_logger.error("错误的传感器类型：%d" % sensor_data['sensor_type'])
                         sensor_data["sensor_type"] = self.msg_engine.msg_def.const.ZNET_DEVICE_TYPE_SENSOR_NONE
-                        sensor_data['sensor_data'] = str(0xffff)
+                        sensor_data['sensor_data'] = int2hex(0xffff)
 
                 tag_data_item['sensors_data_list'].append(sensor_data)
 
@@ -410,51 +416,6 @@ class GZXXZigbeeNetMessage(object):
             self.msg['tag_data']['delay_status_list'].append((data_1_byte & (0b1 << i)) >> i)
 
         self.msg['decode_frame_status'] = self.msg_engine.msg_def.const.DECODE_READER_END
-
-
-    # def __unpack_frame_reader_message_passthrough(self, offset = 7, frame_data_buff = None):
-    #     """
-    #     解析继电器控制指令
-    #     :param offset:
-    #     :return:
-    #     """
-    #     offset_ = offset
-    #     self.msg['decode_frame_status'] = self.msg_engine.msg_def.const.DECODE_READER_BEGIN
-    #
-    #     # 数据类型
-    #     self.msg['tag_data_type'] = self.msg_engine.msg_def.const.MESSAGE_TYPE_MSG_PASS_THROUGH
-    #
-    #     # 序列号(读卡器地址) 3字节
-    #     (data_4_byte, ) = self.msg_engine.unpack_from_bin("!I", frame_data_buff, offset_)
-    #     offset_ += 3
-    #     # 序列号［标签物理地址］,按照16进制字符串存储，编码的时候再转换回来
-    #     self.msg['tag_data']['tag_addr'] =  ("%08X" % data_4_byte)[0:6]
-    #     self.msg['tag_data']['delay_ctrl_reg'] = []
-    #
-    #     # 输出端口
-    #     (data_1_byte,) = self.msg_engine.unpack_from_bin("!B", frame_data_buff, offset_)
-    #     offset_ += 1
-    #     self.msg['tag_data']['output_port'] = data_1_byte
-    #
-    #     # 透传内容长度
-    #     (data_1_byte,) = self.msg_engine.unpack_from_bin("!B", frame_data_buff, offset_)
-    #     offset_ += 1
-    #     self.msg['tag_data']['message_length'] = data_1_byte
-    #     self.msg['tag_data']['message'] = []
-    #
-    #     # 透传内容
-    #     for i in range(0, self.msg['tag_data']['message_length']):
-    #         (data_1_byte,) = self.msg_engine.unpack_from_bin("!B", frame_data_buff, offset_)
-    #         offset_ += 1
-    #         self.msg['tag_data']['message'].append(data_1_byte)
-    #
-    #     # 和校验
-    #     (data_1_byte,) = self.msg_engine.unpack_from_bin("!B", frame_data_buff, offset_)
-    #     offset_ += 1
-    #     self.msg['tag_data']['check_code'] = data_1_byte
-    #     # 进行校验－以后增加
-    #
-    #     self.msg['decode_frame_status'] = self.msg_engine.msg_def.const.DECODE_READER_END
 
     def __unpack_frame_reader(self, frame_data_buff = None):
         """
@@ -588,42 +549,6 @@ class GZXXZigbeeNetMessage(object):
         self.msg['decode_frame_status'] = self.msg_engine.msg_def.const.ENCODE_FRAME_BODY_END
         interface_logger.debug("__pack_frame_reader_relay_ctrl打包内容:%s" % pack_buff.encode("hex"))
         return pack_buff
-        #
-    # def __pack_frame_reader_message_passthrough(self):
-    #     """消息透传打包"""
-    #
-    #     self.msg['decode_frame_status'] = self.msg_engine.msg_def.const.ENCODE_FRAME_BODY_BEGIN
-    #     pack_buff = ""
-    #
-    #     # 帧头
-    #     pack_buff += self.msg_engine.pack_data2bin("!2s", self.msg_engine.const.FH_READER)
-    #
-    #     # 帧长度
-    #     pack_length = 2 + 1 + 5 + self.msg['tag_data']['message_length'] + 1
-    #     pack_buff += self.msg_engine.pack_data2bin("!B", (pack_length & 0x00FF))
-    #
-    #     # 数据类型
-    #     pack_buff += self.msg_engine.pack_data2bin("!7s", self.msg_engine.const.DATA_TYPE_MSG_PASS_THROUGH)
-    #
-    #     # 读卡器地址3字节
-    #     pack_buff += self.msg_engine.ascii2bin_hex(self.msg['tag_data']['tag_addr'])
-    #
-    #     # 输出端口 1个字节
-    #     pack_buff += self.msg_engine.pack_data2bin("!B", (self.msg['tag_data']['output_port'] & 0x00FF))
-    #
-    #     # 透传内容长度 1个字节
-    #     pack_buff += self.msg_engine.pack_data2bin("!B", (self.msg['tag_data']['message_length'] & 0x00FF))
-    #
-    #     # 透传内容
-    #     for i in range(0, self.msg['tag_data']['message_length']):
-    #         pack_buff += self.msg_engine.pack_data2bin("!B", (self.msg['tag_data']['message'][i] & 0x00FF))
-    #
-    #     # 帧尾
-    #     pack_buff += self.msg_engine.pack_data2bin("!1s", self.msg_engine.const.FE_END)
-    #
-    #     self.msg['decode_frame_status'] = self.msg_engine.msg_def.const.ENCODE_FRAME_BODY_END
-    #     return pack_buff
-
 
     def __pack_frame_reader(self):
         """读卡器消息帧打包"""
