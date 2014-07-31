@@ -71,7 +71,7 @@ serial_baund = int(config.get('serial', 'baund'))
 mqtt_server_ip = config.get('mqtt', 'server')
 mqtt_server_port = int(config.get('mqtt', 'port'))
 gateway_topic = config.get('gateway', 'topic')
-
+data_protocol = config.get('device', 'protocol')
 
 # 加载设备信息字典
 devices_info_file = "./devices.txt"
@@ -108,7 +108,7 @@ def check_device(device_id, device_type, device_addr, device_port):
 def publish_device_data(device_id, device_type, device_addr, device_port, device_data):
     # device_data: 16进制字符串
     # 组包
-    device_msg = "%s,%d,%s,%d,%s" % (device_id, device_type, device_addr, device_port, device_data)
+    device_msg = "%s,%d,%s,%d,%s,%s" % (device_id, device_type, device_addr, device_port, data_protocol, device_data)
 
     # MQTT发布
     publish.single(topic=gateway_topic,
@@ -340,7 +340,7 @@ if __name__ == "__main__":
                 logger.error("重新打开串口失败")
 
         # 解析串口数据
-        if serial_data:
+        if len(serial_data) > 0:
             logger.debug("串口数据: %r" % serial_data)
             logger.debug("16进制串口数据: %s" % serial_data.encode("hex"))
             logger.debug("串口数据长度: %d" % (len(serial_data)))
