@@ -2,7 +2,7 @@
 # -*- coding:utf-8 -*-
 """
     感知无限公司
-    1、device_id的组成方式为ip_port
+    1、device_id的组成方式为network/addr/port
     2、设备类型为0，未知
     3、通过全局变量来管理每个介入设备，信息包括device_id，thread对象，handler对象
     4、设备数据传输格式：
@@ -16,6 +16,7 @@
 import sys
 import os
 import time
+import json
 import paho.mqtt.client as mqtt
 import threading
 import logging
@@ -46,7 +47,6 @@ from libs.platformdevicedefine import *
 # 设备信息字典
 devices_info_dict = dict()
 # 设备运行字典，device_id、运行对象
-threads_dict = dict()
 cooperator_serial = SerialCommunicate()
 
 # 切换工作目录
@@ -70,22 +70,28 @@ serial_port = config.get('serial', 'port')
 serial_baund = int(config.get('serial', 'baund'))
 mqtt_server_ip = config.get('mqtt', 'server')
 mqtt_server_port = int(config.get('mqtt', 'port'))
+client_id = config.get('mqtt', 'client_id')
 gateway_topic = config.get('gateway', 'topic')
+device_network = config.get('device', 'network')
 data_protocol = config.get('device', 'protocol')
 
 # 加载设备信息字典
-devices_info_file = "./devices.txt"
+devices_info_file = "devices.txt"
 
 
 def load_devices_info_dict():
-    devices_file = open(devices_info_file, "r+")
     if os.path.exists(devices_info_file):
+        devices_file = open(devices_info_file, "r+")
         content = devices_file.read()
         devices_file.close()
         try:
-            devices_info_dict = loads(content)
+            devices_info_dict.update(loads(content))
         except Exception, e:
             logger.error("devices.txt内容格式不正确")
+    else:
+        devices_file = open(devices_info_file, "w+")
+        devices_file.write("{}")
+        devices_file.close()
 
 
 # 新增设备
@@ -104,15 +110,22 @@ def check_device(device_id, device_type, device_addr, device_port):
         devices_file.write(dumps(devices_info_dict))
         devices_file.close()
 
-
+# 调整MQTT协议为json格式
 def publish_device_data(device_id, device_type, device_addr, device_port, device_data):
     # device_data: 16进制字符串
     # 组包
-    device_msg = "%s,%d,%s,%d,%s,%s" % (device_id, device_type, device_addr, device_port, data_protocol, device_data)
+    device_msg = {
+        "device_id": device_id,
+        "device_type": device_type,
+        "device_addr": device_addr,
+        "device_port": device_port,
+        "data_protocol": data_protocol,
+        "data": device_data
+    }
 
     # MQTT发布
     publish.single(topic=gateway_topic,
-                   payload=device_msg,
+                   payload=json.dumps(device_msg),
                    hostname=mqtt_server_ip,
                    port=mqtt_server_port)
     logger.info("向Topic(%s)发布消息：%s" % (gateway_topic, device_msg))
@@ -151,7 +164,7 @@ def process_zigbee_msg(zigbee_msg):
                         logger.debug("处理传感器数据，数据下标：%d" % j)
                         sensor_data = tag_item['sensors_data_list'][j]
                         if sensor_data["sensor_type"] != const.DEVICE_TYPE_SENSOR_NONE:
-                            device_id = "%s_%s_%d" % (router_id, node_id, j + 1)
+                            device_id = "%s/%s/%d" % (device_network, node_id, j + 1)
                             device_addr = node_id
                             device_port = j + 1
                             device_type = sensor_data["sensor_type"]
@@ -163,7 +176,7 @@ def process_zigbee_msg(zigbee_msg):
                 # 中继器设备状态数据
                 for k in range(0, len(zigbee_msg.msg['tag_data']['delay_status_list'])):
                     logger.debug("处理状态数据，数据下标：%d" % k)
-                    device_id = "%s_%d" % (router_id, k + 1)
+                    device_id = "%s/%s/%d" % (device_network, router_id, k + 1)
                     device_addr = router_id
                     device_port = k + 1
                     device_type = const.DEVICE_TYPE_DELAY_CTRL
@@ -178,7 +191,7 @@ def process_zigbee_msg(zigbee_msg):
                 router_id = zigbee_msg.msg['tag_data']['tag_addr']
                 for i in range(0, len(zigbee_msg.msg['tag_data']['delay_status_list'])):
                     logger.debug("处理状态数据，数据下标：%d" % i)
-                    device_id = "%s_%d" % (router_id, i + 1)
+                    device_id = "%s/%s/%d" % (device_network, router_id, i + 1)
                     device_addr = router_id
                     device_port = i + 1
                     device_type = const.DEVICE_TYPE_DELAY_CTRL
@@ -210,7 +223,7 @@ def process_zigbee_serial_data(cur_package_buff):
 
 
 # 串口数据读取线程
-def process_mqtt(device_id):
+def process_mqtt():
     """
     :param device_id 设备地址
     :return:
@@ -220,16 +233,18 @@ def process_mqtt(device_id):
         logger.info("Connected with result code " + str(rc))
         # Subscribing in on_connect() means that if we lose the connection and
         # reconnect then subscriptions will be renewed.
-        client.subscribe(device_id)
+        logger.debug("订阅如下topic:%r/#" % device_network)
+        client.subscribe("8D4B6F/#")
+        # client.subscribe("%s/#" % device_network, 0)
 
     # The callback for when a PUBLISH message is received from the server.
     def on_message(client, userdata, msg):
         logger.info("收到数据消息" + msg.topic + " " + str(msg.payload))
         # 消息只包含device_cmd，为json字符串
-        device_cmd = loads(msg.payload)
+        cmd_msg = json.loads(msg.payload)
+        device_cmd = {"ctrl_cmd": cmd_msg["command"], "ctrl_delay_time": 0}
         zigbee_ctrl_msg = GZXXZigbeeNetMessage()
-
-        device_info = devices_info_dict["device_id"]
+        device_info = devices_info_dict[msg.topic]
         node_port = device_info["device_port"]
         # 指令消息处理对象
         if len(device_info["device_addr"]) == 0:
@@ -264,11 +279,21 @@ def process_mqtt(device_id):
             # 指令下发
             cooperator_serial.send(zigbee_ctrl_msg.msg['frame_data_buff'])
         except Exception, e:
-            logger.error("消息打包错误，错误内容：%s" % e)
+            logger.error("消息打包错误，错误内容：%r" % e)
 
-    client = mqtt.Client(client_id=gateway_topic)
+    def on_publish(mqttc, obj, mid):
+        logger.debug("on_publish:client_id:%s, userdata:%s, mid:%s." %
+                     (mqttc, obj, str(mid)))
+
+    def on_subscribe(mqttc, obj, mid, granted_qos):
+        logger.debug("on_subscribe:client_id:%s, userdata:%s, mid:%s, granted_qos:%s." %
+                     (mqttc, obj, str(mid), str(granted_qos)))
+
+    client = mqtt.Client(client_id=client_id)
     client.on_connect = on_connect
     client.on_message = on_message
+    client.on_publish = on_publish
+    client.on_subscribe = on_subscribe
 
     client.connect(mqtt_server_ip, mqtt_server_port, 60)
 
@@ -279,30 +304,7 @@ def process_mqtt(device_id):
     client.loop_forever()
 
 
-# mqtt监听线程函数
-def process_manage_mqtt():
-    while True:
-        for device_id in devices_info_dict:
-            device_info = devices_info_dict[device_id]
-            logger.debug("device_info:%r" % device_info)
-            if device_info["device_type"] == const.DEVICE_TYPE_DELAY_CTRL or \
-                            device_info["device_type"] == const.ZNET_DEVICE_TYPE_SENSOR_NONE:
-                if device_info["device_id"] in threads_dict and threads_dict[device_info["device_id"]].isAlive():
-                    pass
-                else:
-                    # 新建线程
-                    # 创建线程接受消息
-                    process_thread = threading.Thread(target=process_mqtt, args=(device_info["device_id"],))
-                    process_thread.start()
-                    threads_dict[device_info["device_id"]] = process_thread
-        # 休息5s
-        sleep(5)
-
 if __name__ == "__main__":
-
-    # 初始化mqtt管理线程
-    manage_mqtt_thread = threading.Thread(target=process_manage_mqtt)
-    manage_mqtt_thread.start()
 
     # 初始化串口
     serial_settings = {
@@ -316,17 +318,21 @@ if __name__ == "__main__":
     # 加载设备数据
     load_devices_info_dict()
 
+    # 初始化mqtt管理线程
+    manage_mqtt_thread = threading.Thread(target=process_mqtt)
+    manage_mqtt_thread.start()
+
     data_buff = ""
     while True:
 
         # 如果线程停止则创建
-        if not manage_mqtt_thread.is_alive():
-            manage_mqtt_thread = threading.Thread(target=process_manage_mqtt)
+        if not manage_mqtt_thread.isAlive():
+            manage_mqtt_thread = threading.Thread(target=process_mqtt)
             manage_mqtt_thread.start()
 
         # 读取串口数据并解析
         # 串口数据读取
-        logger.debug("串口数据读取")
+        # logger.debug("串口数据读取")
         try:
             serial_data = cooperator_serial.recv()
         except Exception, e:
@@ -379,6 +385,6 @@ if __name__ == "__main__":
                         process_zigbee_serial_data(cur_package_buff)
 
         else:
-            logger.debug("处理完成，休眠0.1秒")
+            # logger.debug("处理完成，休眠0.1秒")
             time.sleep(0.1)
 
