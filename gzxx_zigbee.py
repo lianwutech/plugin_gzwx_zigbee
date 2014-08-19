@@ -295,13 +295,16 @@ def process_mqtt():
     client.on_publish = on_publish
     client.on_subscribe = on_subscribe
 
-    client.connect(mqtt_server_ip, mqtt_server_port, 60)
+    try:
+        client.connect(mqtt_server_ip, mqtt_server_port, 60)
 
-    # Blocking call that processes network traffic, dispatches callbacks and
-    # handles reconnecting.
-    # Other loop*() functions are available that give a threaded interface and a
-    # manual interface.
-    client.loop_forever()
+        # Blocking call that processes network traffic, dispatches callbacks and
+        # handles reconnecting.
+        # Other loop*() functions are available that give a threaded interface and a
+        # manual interface.
+        client.loop_forever()
+    except Exception, e:
+        logger.error("MQTT链接失败，错误内容:%r" % e)
 
 
 if __name__ == "__main__":
